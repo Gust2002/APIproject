@@ -3,12 +3,14 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 from typing import Optional
 import secrets
+import os
 
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
-DATABASE_URL = "sqlite:///./livros.db"
+DATABASE_URL = os.getenv("DATABASE_URL")
+
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -24,12 +26,11 @@ app = FastAPI(
     }
 )
 
-MEU_USUARIO = "admin"
-MINHA_SENHA = "admin"
+MEU_USUARIO = os.getenv("MEU_USUARIO")
+MINHA_SENHA = os.getenv("MINHA_SENHA")
 
 security = HTTPBasic()
 
-meus_livrozinhos = {}
 
 class LivroDB(Base):
     __tablename__ = "Livros"
@@ -69,16 +70,16 @@ def autenticar_meu_usuario(credentials: HTTPBasicCredentials = Depends(security)
 def Hello_world():
     return {"message": "Hello guys"}
 
-@app.get("/adiciona")
-def get_livros(page: int = 1, limit: int = 10, db: Session = Depends(sessao_db) ,intredentials: HTTPBasicCredentials = Depends(autenticar_meu_usuario)):
+@app.get("/livros")
+def get_livros(page: int = 1, limit: int = 10, db: Session = Depends(sessao_db) , credentials: HTTPBasicCredentials = Depends(autenticar_meu_usuario)):
     if page < 1 or limit < 1:
-        raise HTTPException(status_code=400, detail="Page oi limit estao com valores invalidos")
-     
-    livros = db.query(LivroDB).offset((page - 1) * limit).limit(),(limit).all()
+      raise HTTPException(status_code=400, detail="Page ou limit estao com valores invalidos")
+    
+    livros = db.query(LivroDB).offset((page - 1) * limit).limit(limit).all()
     
     if not livros:
-        return {"message": meus_livrozinhos}
-    
+     return {"message": "Nao existe nenhum livro"}
+     
     
     total_livros = db.query(LivroDB).count()
 
@@ -86,7 +87,7 @@ def get_livros(page: int = 1, limit: int = 10, db: Session = Depends(sessao_db) 
         "page": page,
         "limit": limit,
         "total": total_livros, 
-        "livros": [{"id": livro.id, "nome_livro": livro.nome_livro, "autor_livro": livro.autor_livro, "ano_livro": livro.ano_livro,} for livro in livros]
+        "livros": [{"id": livro.id, "nome_livro": livro.nome_livro, "autor_livro": livro.autor_livro, "ano_livro": livro.ano_livro} for livro in livros]
     }
     
     
@@ -101,6 +102,7 @@ def post_livros(livro: Livro, db: Session = Depends(sessao_db), credentials: HTT
     db.commit()
     db.refresh(novo_livro)
     
+    return {"Message": "O livro foi criado com sucesso"}
      
 
 @app.put("/atualiza/{id_livro}")
@@ -110,8 +112,8 @@ def put_livros(id_livro: int, livro: Livro, db: Session = Depends(sessao_db),cre
       raise HTTPException(status_code=404, detail="Esse livro nao foi encontrado no seu banco de dados")
    
    db_livro.nome_livro = livro.nome_livro
-   db_livro.livro = livro.autor_livro
-   db_livro.anolivro = livro.ano_livro
+   db_livro.autor_livro = livro.autor_livro
+   db_livro.ano_livro = livro.ano_livro
    
    db.commit()
    db.refresh(db_livro)
@@ -120,9 +122,9 @@ def put_livros(id_livro: int, livro: Livro, db: Session = Depends(sessao_db),cre
     
 
 
-@app.delete("/deleta/{id_livro}")
-def delete_livro(id_livro: int, db: Session = Depends(sessao_db)):
-    db_livro = db.query(LivroDB).filter(LivroDB.id == id_livro).firts()
+@app.delete("/deletar/{id_livro}")
+def delete_livro(id_livro: int, db: Session = Depends(sessao_db), credentials: HTTPBasicCredentials = Depends(autenticar_meu_usuario)):
+    db_livro = db.query(LivroDB).filter(LivroDB.id == id_livro).first()
     
     if not db_livro:
        raise HTTPException(status_code=404, detail="Esse livro nao existe no seu banco de dados")
