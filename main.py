@@ -9,6 +9,15 @@ from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
+import asyncio
+
+from dotenv import load_dotenv
+load_dotenv()
+
+
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 
@@ -67,11 +76,38 @@ def autenticar_meu_usuario(credentials: HTTPBasicCredentials = Depends(security)
     
 
 @app.get("/")
-def Hello_world():
+async def Hello_world():
     return {"message": "Hello guys"}
 
+async def chamadas_externas_1():
+    await asyncio.sleep(2)
+    return "Resultado chamada externa 1"
+
+async def chamadas_externas_2():
+    await asyncio.sleep(2)
+    return "Resultado chamada externa 2"
+
+async def chamadas_externas_3():
+    await asyncio.sleep(2)
+    return "Resultado chamada externa 3"
+
+@app.get("/chamadas-externas")
+async def chamadas_externas():
+    tarefa1 = asyncio.create_task(chamadas_externas_1())
+    tarefa2 = asyncio.create_task(chamadas_externas_2())
+    tarefa3 = asyncio.create_task(chamadas_externas_3())
+    
+    resultado1 = await tarefa1
+    resultado2 = await tarefa2
+    resultado3 = await tarefa3
+    
+    return {
+        "message": "Todos as chamadas nos API's foram concluidas com sucesso",
+        "resultado": [resultado1, resultado2, resultado3]
+    }
+
 @app.get("/livros")
-def get_livros(page: int = 1, limit: int = 10, db: Session = Depends(sessao_db) , credentials: HTTPBasicCredentials = Depends(autenticar_meu_usuario)):
+async def get_livros(page: int = 1, limit: int = 10, db: Session = Depends(sessao_db) , credentials: HTTPBasicCredentials = Depends(autenticar_meu_usuario)):
     if page < 1 or limit < 1:
       raise HTTPException(status_code=400, detail="Page ou limit estao com valores invalidos")
     
@@ -92,7 +128,7 @@ def get_livros(page: int = 1, limit: int = 10, db: Session = Depends(sessao_db) 
     
     
 @app.post("/adiciona")
-def post_livros(livro: Livro, db: Session = Depends(sessao_db), credentials: HTTPBasicCredentials = Depends(autenticar_meu_usuario)):
+async def post_livros(livro: Livro, db: Session = Depends(sessao_db), credentials: HTTPBasicCredentials = Depends(autenticar_meu_usuario)):
     db_livro = db.query(LivroDB).filter(LivroDB.nome_livro == livro.nome_livro, LivroDB.autor_livro == livro.autor_livro).first()
     if db_livro:
         raise HTTPException(status_code=400, detail="Esse livro ja existe no banco de dados")
@@ -106,7 +142,7 @@ def post_livros(livro: Livro, db: Session = Depends(sessao_db), credentials: HTT
      
 
 @app.put("/atualiza/{id_livro}")
-def put_livros(id_livro: int, livro: Livro, db: Session = Depends(sessao_db),credentials: HTTPBasicCredentials = Depends(autenticar_meu_usuario)):
+async def put_livros(id_livro: int, livro: Livro, db: Session = Depends(sessao_db),credentials: HTTPBasicCredentials = Depends(autenticar_meu_usuario)):
    db_livro = db.query(LivroDB).filter(LivroDB.id == id_livro).first()
    if not db_livro:
       raise HTTPException(status_code=404, detail="Esse livro nao foi encontrado no seu banco de dados")
@@ -123,7 +159,7 @@ def put_livros(id_livro: int, livro: Livro, db: Session = Depends(sessao_db),cre
 
 
 @app.delete("/deletar/{id_livro}")
-def delete_livro(id_livro: int, db: Session = Depends(sessao_db), credentials: HTTPBasicCredentials = Depends(autenticar_meu_usuario)):
+async def delete_livro(id_livro: int, db: Session = Depends(sessao_db), credentials: HTTPBasicCredentials = Depends(autenticar_meu_usuario)):
     db_livro = db.query(LivroDB).filter(LivroDB.id == id_livro).first()
     
     if not db_livro:
